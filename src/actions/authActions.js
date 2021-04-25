@@ -15,7 +15,7 @@ export function signup(username,password,email,firstname,lastname) {
     Server.post('/user/', {email:email,
         username:username,
         password:password,
-        scan_directory:'/var/lib/librephotos/data/' + username,
+        scan_directory:'/data/' + username,
         first_name:firstname,
         last_name:lastname})
       .then((response) => {
