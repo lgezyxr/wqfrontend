@@ -5,13 +5,14 @@ import { connect } from "react-redux";
 import {
   fetchUserAlbumsList,
   editUserAlbum,
-  createNewUserAlbum
+  createNewUserAlbum,
 } from "../actions/albumsActions";
 import {
   fetchPhotoDetail,
   setPhotosFavorite,
   setPhotosHidden,
-  setPhotosPublic
+  setPhotosPublic,
+  downloadPhotos,
 } from "../actions/photosActions";
 import { copyToClipboard } from "../util/util";
 import { SecuredImageJWT } from "../components/SecuredImage";
@@ -26,11 +27,13 @@ import {
   Input,
   Popup,
   Button,
-  Icon
+  Icon,
+  Grid as GridSemantic,
+  GridRow,
+  GridColumn,
 } from "semantic-ui-react";
 import { serverAddress, shareAddress } from "../api_client/apiClient";
 import { LightBox } from "../components/lightBox";
-import { LightBoxV2 } from "../components/LightBoxV2";
 import debounce from "lodash/debounce";
 import _ from "lodash";
 import * as moment from "moment";
@@ -39,25 +42,17 @@ import { calculateGridCells, calculateGridCellSize } from "../util/gridUtils";
 import {
   ScrollSpeed,
   SPEED_THRESHOLD,
-  SCROLL_DEBOUNCE_DURATION
+  SCROLL_DEBOUNCE_DURATION,
 } from "../util/scrollUtils";
 
-
 var TOP_MENU_HEIGHT = 45; // don't change this
-var LEFT_MENU_WIDTH = 85; // don't change this
 var SIDEBAR_WIDTH = 85;
 var TIMELINE_SCROLL_WIDTH = 0;
 var DAY_HEADER_HEIGHT = 70;
 
-if (window.innerWidth < 600) {
-  var LIGHTBOX_SIDEBAR_WIDTH = window.innerWidth;
-} else {
-  var LIGHTBOX_SIDEBAR_WIDTH = 360;
-}
-
 function fuzzy_match(str, pattern) {
   if (pattern.split("").length > 0) {
-    pattern = pattern.split("").reduce(function(a, b) {
+    pattern = pattern.split("").reduce(function (a, b) {
       return a + ".*" + b;
     });
     return new RegExp(pattern).test(str);
@@ -74,12 +69,8 @@ const customStyles = {
     height: window.innerHeight - 300,
 
     overflow: "hidden",
-    // paddingRight:0,
-    // paddingBottomt:0,
-    // paddingLeft:10,
-    // paddingTop:10,
     padding: 0,
-    backgroundColor: "white"
+    backgroundColor: "white",
   },
   overlay: {
     top: 0,
@@ -90,8 +81,8 @@ const customStyles = {
     borderRadius: 0,
     border: 0,
     zIndex: 102,
-    backgroundColor: "rgba(200,200,200,0.8)"
-  }
+    backgroundColor: "rgba(200,200,200,0.8)",
+  },
 };
 
 export class PhotoListView extends Component {
@@ -122,7 +113,7 @@ export class PhotoListView extends Component {
       selectedImageHashes: [],
       modalAddToAlbumOpen: false,
       modalSharePhotosOpen: false,
-      modalAlbumShareOpen: false
+      modalAlbumShareOpen: false,
     };
   }
 
@@ -137,7 +128,7 @@ export class PhotoListView extends Component {
     if (scrollSpeed >= SPEED_THRESHOLD) {
       this.setState({
         isScrollingFast: true,
-        scrollTop: scrollTop
+        scrollTop: scrollTop,
       });
     }
 
@@ -150,16 +141,12 @@ export class PhotoListView extends Component {
 
     if (isScrollingFast) {
       this.setState({
-        isScrollingFast: false
+        isScrollingFast: false,
       });
     }
   }, SCROLL_DEBOUNCE_DURATION);
 
   componentDidMount() {
-    // this.props.dispatch(fetchPhotos())
-    // if (this.props.photosGroupedByDate.length < 1) {
-    //     this.props.dispatch(fetchDateAlbumsPhotoHashList())
-    // }
     this.handleResize();
     window.addEventListener("resize", this.handleResize);
   }
@@ -169,10 +156,9 @@ export class PhotoListView extends Component {
   }
 
   handleResize() {
+    var columnWidth = window.innerWidth - 5 - 5 - 10;
     if (this.props.showSidebar) {
-      var columnWidth = window.innerWidth - SIDEBAR_WIDTH - 5 - 5 - 10;
-    } else {
-      var columnWidth = window.innerWidth - 5 - 5 - 10;
+      columnWidth = window.innerWidth - SIDEBAR_WIDTH - 5 - 5 - 10;
     }
 
     const { entrySquareSize, numEntrySquaresPerRow } = calculateGridCellSize(
@@ -189,7 +175,7 @@ export class PhotoListView extends Component {
       entrySquareSize: entrySquareSize,
       numEntrySquaresPerRow: numEntrySquaresPerRow,
       cellContents: cellContents,
-      hash2row: hash2row
+      hash2row: hash2row,
     });
     if (this.listRef.current) {
       this.listRef.current.recomputeGridSize();
@@ -199,14 +185,14 @@ export class PhotoListView extends Component {
   onPhotoClick(hash) {
     this.setState({
       lightboxImageIndex: this.props.idx2hash.indexOf(hash),
-      lightboxShow: true
+      lightboxShow: true,
     });
   }
 
   onPhotoSelect(hash) {
     var selectedImageHashes = this.state.selectedImageHashes;
     if (selectedImageHashes.includes(hash)) {
-      selectedImageHashes = selectedImageHashes.filter(item => item !== hash);
+      selectedImageHashes = selectedImageHashes.filter((item) => item !== hash);
     } else {
       selectedImageHashes.push(hash);
     }
@@ -217,17 +203,18 @@ export class PhotoListView extends Component {
   }
 
   onGroupSelect(hashes) {
+    var selectedImageHashes;
     if (
       _.intersection(hashes, this.state.selectedImageHashes).length ===
       hashes.length
     ) {
       // for deselect
-      var selectedImageHashes = _.difference(
+      selectedImageHashes = _.difference(
         this.state.selectedImageHashes,
         hashes
       );
     } else {
-      var selectedImageHashes = _.union(this.state.selectedImageHashes, hashes);
+      selectedImageHashes = _.union(this.state.selectedImageHashes, hashes);
     }
     this.setState({ selectedImageHashes: selectedImageHashes });
     if (selectedImageHashes.length === 0) {
@@ -249,7 +236,7 @@ export class PhotoListView extends Component {
                 ...style,
                 width: this.state.width,
                 height: DAY_HEADER_HEIGHT,
-                paddingTop: 20
+                paddingTop: 20,
               }}
             >
               <div
@@ -261,8 +248,9 @@ export class PhotoListView extends Component {
                     {cell.date === "No Timestamp"
                       ? "No Timestamp"
                       : this.props.dayHeaderPrefix
-                        ? this.props.dayHeaderPrefix + moment(cell.date).format("MMM Do YYYY, dddd")
-                        : moment(cell.date).format("MMM Do YYYY, dddd")}
+                      ? this.props.dayHeaderPrefix +
+                        moment(cell.date).format("MMM Do YYYY, dddd")
+                      : moment(cell.date).format("MMM Do YYYY, dddd")}
                     <Header.Subheader>
                       <Icon name="photo" />
                       {cell.photos.length} Photos
@@ -277,14 +265,14 @@ export class PhotoListView extends Component {
                   circular
                   color={
                     _.intersection(
-                      cell.photos.map(el => el.image_hash),
+                      cell.photos.map((el) => el.image_hash),
                       this.state.selectedImageHashes
                     ).length === cell.photos.length
                       ? "blue"
                       : "grey"
                   }
                   onClick={() => {
-                    const hashes = cell.photos.map(p => p.image_hash);
+                    const hashes = cell.photos.map((p) => p.image_hash);
                     this.onGroupSelect(hashes);
                   }}
                   size="mini"
@@ -301,7 +289,7 @@ export class PhotoListView extends Component {
                 ...style,
                 width: this.state.width,
                 height: DAY_HEADER_HEIGHT,
-                paddingTop: 20
+                paddingTop: 20,
               }}
             >
               <div style={{ backgroundColor: "white" }}>
@@ -311,8 +299,9 @@ export class PhotoListView extends Component {
                     {cell.date === "No Timestamp"
                       ? "No Timestamp"
                       : this.props.dayHeaderPrefix
-                        ? this.props.dayHeaderPrefix + moment(cell.date).format("MMM Do YYYY, dddd")
-                        : moment(cell.date).format("MMM Do YYYY, dddd")}
+                      ? this.props.dayHeaderPrefix +
+                        moment(cell.date).format("MMM Do YYYY, dddd")
+                      : moment(cell.date).format("MMM Do YYYY, dddd")}
                     {cell.location ? (
                       <Header.Subheader>
                         <Icon name="map" />
@@ -335,12 +324,40 @@ export class PhotoListView extends Component {
 
         if (!this.state.isScrollingFast) {
           // photo cell not scrolling fast
+          var videoIcon;
+          if (
+            this.props.photoDetails[cell.image_hash]
+              ? this.props.photoDetails[cell.image_hash].video
+              : cell.video
+          ) {
+            videoIcon = (
+              <div
+                style={{
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  position: "absolute",
+                }}
+              >
+                <Icon
+                  circular
+                  style={{ backgroundColor: "rgba(255,255,255,0.5)" }}
+                  onClick={() => {
+                    this.onPhotoClick(cell.image_hash);
+                  }}
+                  color="black"
+                  name="play"
+                />
+              </div>
+            );
+          }
+          var favIcon;
           if (
             this.props.photoDetails[cell.image_hash]
               ? this.props.photoDetails[cell.image_hash].favorited
               : cell.favorited
           ) {
-            var favIcon = (
+            favIcon = (
               <div style={{ right: 6, bottom: 6, position: "absolute" }}>
                 <Icon
                   circular
@@ -356,7 +373,7 @@ export class PhotoListView extends Component {
               </div>
             );
           } else {
-            var favIcon = (
+            favIcon = (
               <div
                 className="gridCellActions"
                 style={{ right: 6, bottom: 6, position: "absolute" }}
@@ -383,13 +400,13 @@ export class PhotoListView extends Component {
               </div>
             );
           }
-
+          var hiddenIcon;
           if (
             this.props.photoDetails[cell.image_hash]
               ? this.props.photoDetails[cell.image_hash].hidden
               : cell.hidden
           ) {
-            var hiddenIcon = (
+            hiddenIcon = (
               <div style={{ left: 6, bottom: 6, position: "absolute" }}>
                 <Icon
                   circular
@@ -405,7 +422,7 @@ export class PhotoListView extends Component {
               </div>
             );
           } else {
-            var hiddenIcon = (
+            hiddenIcon = (
               <div
                 className="gridCellActions"
                 style={{ left: 6, bottom: 6, position: "absolute" }}
@@ -432,13 +449,13 @@ export class PhotoListView extends Component {
               </div>
             );
           }
-
+          var publicIcon;
           if (
             this.props.photoDetails[cell.image_hash]
               ? this.props.photoDetails[cell.image_hash].public
               : cell.public
           ) {
-            var publicIcon = (
+            publicIcon = (
               <div style={{ right: 6, top: 6, position: "absolute" }}>
                 <Icon
                   circular
@@ -454,7 +471,7 @@ export class PhotoListView extends Component {
               </div>
             );
           } else {
-            var publicIcon = (
+            publicIcon = (
               <div
                 className="gridCellActions"
                 style={{ right: 6, top: 6, position: "absolute" }}
@@ -471,12 +488,6 @@ export class PhotoListView extends Component {
                         this.props.dispatch(
                           setPhotosPublic([cell.image_hash], true)
                         );
-                        // Location of generated link when shareing from album. 
-                        //Origianl was 
-                        //serverAddress.replace('//','') +
-                        // "/media/reusableline505/" +
-                        // cell.image_hash +
-                        // ".jpg" DW 12-13-20
                         copyToClipboard(
                           shareAddress +
                             "/media/photos/" +
@@ -510,7 +521,7 @@ export class PhotoListView extends Component {
                     : "#eeeeee",
                   margin: 1,
                   width: style.width - 2,
-                  height: style.height - 2
+                  height: style.height - 2,
                 }}
               >
                 {(this.props.photoDetails[cell.image_hash]
@@ -522,7 +533,7 @@ export class PhotoListView extends Component {
                       width: this.state.entrySquareSize - 32,
                       padding: 0,
                       margin: 0,
-                      backgroundColor: "#dddddd"
+                      backgroundColor: "#dddddd",
                     }}
                   />
                 ) : (
@@ -560,6 +571,7 @@ export class PhotoListView extends Component {
                     }
                   />
                 </div>
+                {videoIcon}
                 {!this.props.isPublic && hiddenIcon}
                 {!this.props.isPublic && favIcon}
                 {!this.props.isPublic && publicIcon}
@@ -578,7 +590,7 @@ export class PhotoListView extends Component {
                       height: this.state.entrySquareSize - 2,
                       width: this.state.entrySquareSize - 2,
                       padding: 0,
-                      backgroundColor: "#dddddd"
+                      backgroundColor: "#dddddd",
                     }}
                   />
                 ) : (
@@ -623,6 +635,7 @@ export class PhotoListView extends Component {
                     />
                   )}
                 </div>
+                {videoIcon}
                 {!this.props.isPublic && hiddenIcon}
                 {!this.props.isPublic && favIcon}
                 {!this.props.isPublic && publicIcon}
@@ -641,7 +654,7 @@ export class PhotoListView extends Component {
                   cell.image_hash
                 )
                   ? "#AED6F1"
-                  : "#eeeeee"
+                  : "#eeeeee",
               }}
             />
           );
@@ -667,12 +680,7 @@ export class PhotoListView extends Component {
   }
 
   static getDerivedStateFromProps(nextProps, prevState) {
-    var t0 = performance.now();
     const imagesGroupedByDate = nextProps.photosGroupedByDate;
-    var t1 = performance.now();
-
-    var idx2hash = [];
-
     const { cellContents, hash2row } = calculateGridCells(
       imagesGroupedByDate,
       prevState.numEntrySquaresPerRow
@@ -681,19 +689,17 @@ export class PhotoListView extends Component {
       ...prevState,
       cellContents,
       hash2row,
-      imagesGroupedByDate
+      imagesGroupedByDate,
     };
     return nextState;
   }
 
   render() {
-    const { lightboxImageIndex } = this.state;
     if (
       this.props.loading ||
       this.props.idx2hash.length < 1 ||
       this.props.photosGroupedByDate.length < 1
     ) {
-      //if (true) {
       return (
         <div>
           <div style={{ height: 60, paddingTop: 10 }}>
@@ -721,8 +727,7 @@ export class PhotoListView extends Component {
                 display: "flex",
                 justifyContent: "center",
                 alignItems: "center",
-                height: this.state.height - TOP_MENU_HEIGHT - 60
-                // width:this.state.width
+                height: this.state.height - TOP_MENU_HEIGHT - 60,
               }}
             >
               <Header>{this.props.noResultsMessage}</Header>
@@ -745,14 +750,14 @@ export class PhotoListView extends Component {
                             ...style,
                             width: this.state.width,
                             height: DAY_HEADER_HEIGHT,
-                            paddingTop: 20
+                            paddingTop: 20,
                           }}
                         >
                           <div
                             style={{
                               backgroundColor: "#dddddd",
                               height: 40,
-                              width: 260
+                              width: 260,
                             }}
                           />
                         </div>
@@ -806,393 +811,400 @@ export class PhotoListView extends Component {
       })
       .reduce((a, b) => a + b, 0);
 
-    console.log(this.props);
-
+    console.log("photolistview props:" ,this.props);
+    var isUserAlbum = false;
     if (this.props.route.location.pathname.startsWith("/useralbum/")) {
-      var isUserAlbum = true;
-    } else {
-      var isUserAlbum = false;
+      isUserAlbum = true;
     }
 
     return (
       <div>
-        <div style={{ height: 60, paddingTop: 10 }}>
-          <Header as="h2">
-            <Icon name={this.props.titleIconName} />
-            <Header.Content>
-              {this.props.title}{" "}
-              <Header.Subheader>
-                {this.props.photosGroupedByDate.length} days,{" "}
-                {this.props.idx2hash.length} photos
-                {this.props.additionalSubHeader}
-              </Header.Subheader>
-            </Header.Content>
-          </Header>
-        </div>
-
-        {true &&
-          !this.props.isPublic && (
-            <div
-              style={{
-                marginLeft: -5,
-                paddingLeft: 5,
-                paddingRight: 5,
-                height: 40,
-                paddingTop: 4,
-                backgroundColor: "#f6f6f6"
-              }}
+        <GridSemantic columns={2}>
+          <GridRow>
+            <GridColumn>
+              <Header as="h2" style={{ paddingTop: 10, paddingRight: 10 }}>
+                <Icon name={this.props.titleIconName} />
+                <Header.Content>
+                  {this.props.title}{" "}
+                  <Header.Subheader>
+                    {this.props.photosGroupedByDate.length} days,{" "}
+                    {this.props.idx2hash.length} photos
+                    {this.props.additionalSubHeader}
+                  </Header.Subheader>
+                </Header.Content>
+              </Header>
+            </GridColumn>
+            <GridColumn>
+              <Header
+                textAlign="right"
+                size="small"
+                style={{ paddingTop: 10, paddingRight: 10 }}
+              >
+                <Header.Content>
+                  {this.props.dayHeaderPrefix
+                    ? this.props.dayHeaderPrefix + this.state.date
+                    : this.state.date}
+                  <Header.Subheader>{this.state.fromNow}</Header.Subheader>
+                </Header.Content>
+              </Header>
+            </GridColumn>
+          </GridRow>
+        </GridSemantic>
+        {true && !this.props.isPublic && (
+          <div
+            style={{
+              marginLeft: -5,
+              paddingLeft: 5,
+              paddingRight: 5,
+              height: 40,
+              paddingTop: 4,
+              backgroundColor: "#f6f6f6",
+            }}
+          >
+            <Button.Group
+              compact
+              floated="left"
+              style={{ paddingLeft: 2, paddingRight: 2 }}
             >
-              {/* <Checkbox
-                fitted
-                label={" "}
-                style={{ padding: 5 }}
-                toggle
-                checked={this.state.selectMode}
-                onClick={() => {
-                  this.setState({ selectMode: !this.state.selectMode });
-                  if (this.state.selectMode) {
-                    this.setState({ selectedImageHashes: [] });
-                  }
-                }}
-              /> */}
-
-              <Button.Group
-                compact
-                floated="left"
-                style={{ paddingLeft: 2, paddingRight: 2 }}
-              >
-                <Popup
-                  trigger={
-                    <Button
-                      icon="checkmark"
-                      compact
-                      active={this.state.selectMode}
-                      color={this.state.selectMode ? "blue" : "null"}
-                      onClick={() => {
-                        this.setState({ selectMode: !this.state.selectMode });
-                        if (this.state.selectMode) {
-                          this.setState({ selectedImageHashes: [] });
-                        }
-                      }}
-                      label={{
-                        as: "a",
-                        basic: true,
-                        content: `${
-                          this.state.selectedImageHashes.length
-                        } selected`
-                      }}
-                      labelPosition="right"
-                    />
-                  }
-                  content="Toggle select mode"
-                  inverted
-                />
-              </Button.Group>
-
-              <Button.Group
-                compact
-                floated="left"
-                style={{ paddingLeft: 2, paddingRight: 2 }}
-              >
-                <Popup
-                  inverted
-                  trigger={
-                    <Button
-                      icon
-                      compact
-                      positive={
-                        this.state.selectedImageHashes.length !==
-                        this.props.idx2hash.length
+              <Popup
+                trigger={
+                  <Button
+                    icon="checkmark"
+                    compact
+                    active={this.state.selectMode}
+                    color={this.state.selectMode ? "blue" : "null"}
+                    onClick={() => {
+                      this.setState({ selectMode: !this.state.selectMode });
+                      if (this.state.selectMode) {
+                        this.setState({ selectedImageHashes: [] });
                       }
-                      negative={
+                    }}
+                    label={{
+                      as: "a",
+                      basic: true,
+                      content: `${this.state.selectedImageHashes.length} selected`,
+                    }}
+                    labelPosition="right"
+                  />
+                }
+                content="Toggle select mode"
+                inverted
+              />
+            </Button.Group>
+
+            <Button.Group
+              compact
+              floated="left"
+              style={{ paddingLeft: 2, paddingRight: 2 }}
+            >
+              <Popup
+                inverted
+                trigger={
+                  <Button
+                    icon
+                    compact
+                    positive={
+                      this.state.selectedImageHashes.length !==
+                      this.props.idx2hash.length
+                    }
+                    negative={
+                      this.state.selectedImageHashes.length ===
+                      this.props.idx2hash.length
+                    }
+                    onClick={() => {
+                      if (
                         this.state.selectedImageHashes.length ===
                         this.props.idx2hash.length
-                      }
-                      onClick={() => {
-                        if (
-                          this.state.selectedImageHashes.length ===
-                          this.props.idx2hash.length
-                        ) {
-                          this.setState({ selectedImageHashes: [] });
-                        } else {
-                          this.setState({
-                            selectMode: true,
-                            selectedImageHashes: this.props.idx2hash
-                          });
-                        }
-                      }}
-                    >
-                      <Icon
-                        name={
-                          this.state.selectedImageHashes.length ===
-                          this.props.idx2hash.length
-                            ? "check circle outline"
-                            : "check circle"
-                        }
-                      />
-                    </Button>
-                  }
-                  content={
-                    this.state.selectedImageHashes.length ===
-                    this.props.idx2hash.length
-                      ? "Deselect all"
-                      : "Select All"
-                  }
-                />
-              </Button.Group>
-
-              <Button.Group
-                style={{ paddingLeft: 2, paddingRight: 2 }}
-                compact
-                floated="right"
-                color="orange"
-              >
-                <Dropdown
-                  icon="ellipsis vertical"
-                  pointing="top right"
-                  floating
-                  button
-                  compact
-                  floated="right"
-                  className="icon"
-                  color="blue"
-                >
-                  <Dropdown.Menu>
-                    <Dropdown.Header>
-                      <Icon name='image'/>Photo Actions ({this.state.selectedImageHashes.length} selected)
-                    </Dropdown.Header>
-
-                    <Dropdown.Divider />
-                    <Dropdown.Item
-                      disabled={this.state.selectedImageHashes.length === 0}
-                      onClick={() => {
-                        this.props.dispatch(
-                          setPhotosFavorite(
-                            this.state.selectedImageHashes,
-                            true
-                          )
-                        );
-                      }}
-                    >
-                      <Icon name="star" color="yellow" />
-                      {"  Favorite"}
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      disabled={this.state.selectedImageHashes.length === 0}
-                      onClick={() => {
-                        this.props.dispatch(
-                          setPhotosFavorite(
-                            this.state.selectedImageHashes,
-                            false
-                          )
-                        );
-                      }}
-                    >
-                      <Icon name="star outline" color="yellow" />
-                      {"  Unfavorite"}
-                    </Dropdown.Item>
-
-                    <Dropdown.Divider />
-                    <Dropdown.Item
-                      disabled={this.state.selectedImageHashes.length === 0}
-                      onClick={() => {
-                        this.props.dispatch(
-                          setPhotosHidden(this.state.selectedImageHashes, true)
-                        );
-                      }}
-                    >
-                      <Icon name="hide" color="red" />
-                      {"  Hide"}
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      disabled={this.state.selectedImageHashes.length === 0}
-                      onClick={() => {
-                        this.props.dispatch(
-                          setPhotosHidden(this.state.selectedImageHashes, false)
-                        );
-                      }}
-                    >
-                      <Icon name="unhide" color="black" />
-                      {"  Unhide"}
-                    </Dropdown.Item>
-
-                    <Dropdown.Divider />
-                    <Dropdown.Item
-                      disabled={this.state.selectedImageHashes.length === 0}
-                      onClick={() => {
-                        this.props.dispatch(
-                          setPhotosPublic(this.state.selectedImageHashes, true)
-                        );
-                        const linksToCopy = this.state.selectedImageHashes
-                          .map(
-                            ih => serverAddress + "/media/photos/" + ih + ".jpg"
-                          )
-                          .join("\n");
-                        copyToClipboard(linksToCopy);
-                      }}
-                    >
-                      <Icon name="globe" />
-                      {"  Make Public"}
-                    </Dropdown.Item>
-                    <Dropdown.Item
-                      disabled={this.state.selectedImageHashes.length === 0}
-                      onClick={() => {
-                        this.props.dispatch(
-                          setPhotosPublic(this.state.selectedImageHashes, false)
-                        );
-                      }}
-                    >
-                      <Icon name="key" />
-                      {"  Make Private"}
-                    </Dropdown.Item>
-
-                    <Dropdown.Divider />
-                    <Popup
-                      inverted
-                      position='left center'
-                      trigger={
-                        <Dropdown.Item
-                          disabled={this.state.selectedImageHashes.length === 0}
-                          onClick={() => {
-                            if (this.state.selectedImageHashes.length > 0) {
-                              this.setState({ modalSharePhotosOpen: true });
-                            }
-                          }}
-                        >
-                          <Icon name="share" />
-                          {"  Sharing"}
-                        </Dropdown.Item>
-                      }
-                      content="Open sharing panel for selected photos"
-                    />
-                    <Dropdown.Divider/>
-                    <Dropdown.Header>
-                      <Icon name='images'/>Album Actions
-                    </Dropdown.Header>
-                    <Popup
-                      inverted
-                      position='left center'
-                      trigger={
-                        <Dropdown.Item
-                          disabled={!this.props.route.location.pathname.startsWith("/useralbum/")}
-                          onClick={() => {
-                              //todo
-                            this.setState({ modalAlbumShareOpen: true });
-                          }}
-                        >
-                          <Icon name="share" />
-                          {"  Sharing"}
-                        </Dropdown.Item>
-                      }
-                      content="Open sharing panel for the current album"
-                    />
-
-
-
-
-                  </Dropdown.Menu>
-                </Dropdown>
-              </Button.Group>
-
-              <Button.Group
-                style={{ paddingLeft: 2, paddingRight: 2 }}
-                floated="right"
-                compact
-                color="teal"
-              >
-                <Dropdown
-                  disabled={this.state.selectedImageHashes.length === 0}
-                  pointing="top right"
-                  icon="plus"
-                  floating
-                  button
-                  compact
-                  floated="right"
-                  className="icon"
-                >
-                  <Dropdown.Menu>
-                    <Dropdown.Header>
-                      Album ({this.state.selectedImageHashes.length} selected)
-                    </Dropdown.Header>
-                    <Dropdown.Divider />
-                    <Dropdown.Item
-                      onClick={() => {
-                        if (this.state.selectedImageHashes.length > 0) {
-                          this.setState({ modalAddToAlbumOpen: true });
-                        }
-                      }}
-                    >
-                      <Icon name="bookmark" color="red" />
-                      {" Album"}
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown>
-              </Button.Group>
-
-              {false && isUserAlbum && (
-                <Popup
-                  inverted
-                  trigger={
-                    <Button.Group
-                      style={{ paddingLeft: 2, paddingRight: 2 }}
-                      floated="right"
-                      compact
-                      icon
-                      onClick={() => {
-                        this.setState({ modalAlbumShareOpen: true });
-                      }}
-                    >
-                      <Button icon="share alternate" />
-                    </Button.Group>
-                  }
-                  content="Share album"
-                />
-              )}
-
-              <Button.Group
-                style={{ paddingLeft: 2, paddingRight: 2 }}
-                floated="right"
-                compact
-              >
-                <Popup
-                  inverted
-                  trigger={
-                    <Button
-                      active={this.props.gridType === "dense"}
-                      onClick={() => {
-                        this.props.dispatch({
-                          type: "SET_GRID_TYPE",
-                          payload: "dense"
+                      ) {
+                        this.setState({ selectedImageHashes: [] });
+                      } else {
+                        this.setState({
+                          selectMode: true,
+                          selectedImageHashes: this.props.idx2hash,
                         });
-                      }}
-                      icon
-                    >
-                      <Icon name="grid layout" />
-                    </Button>
-                  }
-                  content="Small thumbnails"
-                />
-                <Popup
-                  inverted
-                  trigger={
-                    <Button
-                      active={this.props.gridType === "loose"}
-                      onClick={() => {
-                        this.props.dispatch({
-                          type: "SET_GRID_TYPE",
-                          payload: "loose"
-                        });
-                      }}
-                      icon
-                    >
-                      <Icon name="block layout" />
-                    </Button>
-                  }
-                  content="Big thumbnails"
-                />
-              </Button.Group>
-            </div>
-          )}
+                      }
+                    }}
+                  >
+                    <Icon
+                      name={
+                        this.state.selectedImageHashes.length ===
+                        this.props.idx2hash.length
+                          ? "check circle outline"
+                          : "check circle"
+                      }
+                    />
+                  </Button>
+                }
+                content={
+                  this.state.selectedImageHashes.length ===
+                  this.props.idx2hash.length
+                    ? "Deselect all"
+                    : "Select All"
+                }
+              />
+            </Button.Group>
+
+            <Button.Group
+              style={{ paddingLeft: 2, paddingRight: 2 }}
+              compact
+              floated="right"
+              color="orange"
+            >
+              <Dropdown
+                icon="ellipsis vertical"
+                pointing="top right"
+                floating
+                button
+                compact
+                floated="right"
+                className="icon"
+                color="blue"
+              >
+                <Dropdown.Menu>
+                  <Dropdown.Header>
+                    <Icon name="image" />
+                    Photo Actions ({this.state.selectedImageHashes.length}{" "}
+                    selected)
+                  </Dropdown.Header>
+
+                  <Dropdown.Divider />
+                  <Dropdown.Item
+                    disabled={this.state.selectedImageHashes.length === 0}
+                    onClick={() => {
+                      this.props.dispatch(
+                        setPhotosFavorite(this.state.selectedImageHashes, true)
+                      );
+                    }}
+                  >
+                    <Icon name="star" color="yellow" />
+                    {"  Favorite"}
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    disabled={this.state.selectedImageHashes.length === 0}
+                    onClick={() => {
+                      this.props.dispatch(
+                        setPhotosFavorite(this.state.selectedImageHashes, false)
+                      );
+                    }}
+                  >
+                    <Icon name="star outline" color="yellow" />
+                    {"  Unfavorite"}
+                  </Dropdown.Item>
+
+                  <Dropdown.Divider />
+                  <Dropdown.Item
+                    disabled={this.state.selectedImageHashes.length === 0}
+                    onClick={() => {
+                      this.props.dispatch(
+                        setPhotosHidden(this.state.selectedImageHashes, true)
+                      );
+                    }}
+                  >
+                    <Icon name="hide" color="red" />
+                    {"  Hide"}
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    disabled={this.state.selectedImageHashes.length === 0}
+                    onClick={() => {
+                      this.props.dispatch(
+                        setPhotosHidden(this.state.selectedImageHashes, false)
+                      );
+                    }}
+                  >
+                    <Icon name="unhide" color="black" />
+                    {"  Unhide"}
+                  </Dropdown.Item>
+
+                  <Dropdown.Divider />
+                  <Dropdown.Item
+                    disabled={this.state.selectedImageHashes.length === 0}
+                    onClick={() => {
+                      this.props.dispatch(
+                        setPhotosPublic(this.state.selectedImageHashes, true)
+                      );
+                      const linksToCopy = this.state.selectedImageHashes
+                        .map(
+                          (ih) => serverAddress + "/media/photos/" + ih + ".jpg"
+                        )
+                        .join("\n");
+                      copyToClipboard(linksToCopy);
+                    }}
+                  >
+                    <Icon name="globe" />
+                    {"  Make Public"}
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    disabled={this.state.selectedImageHashes.length === 0}
+                    onClick={() => {
+                      this.props.dispatch(
+                        setPhotosPublic(this.state.selectedImageHashes, false)
+                      );
+                    }}
+                  >
+                    <Icon name="key" />
+                    {"  Make Private"}
+                  </Dropdown.Item>
+
+                  <Dropdown.Divider />
+                  <Dropdown.Item
+                    disabled={this.state.selectedImageHashes.length === 0}
+                    onClick={() => {
+                      this.props.dispatch(
+                        downloadPhotos(this.state.selectedImageHashes)
+                      );
+                    }}
+                  >
+                    <Icon name="download" />
+                    {"  Download"}
+                  </Dropdown.Item>
+
+                  <Dropdown.Divider />
+                  <Popup
+                    inverted
+                    position="left center"
+                    trigger={
+                      <Dropdown.Item
+                        disabled={this.state.selectedImageHashes.length === 0}
+                        onClick={() => {
+                          if (this.state.selectedImageHashes.length > 0) {
+                            this.setState({ modalSharePhotosOpen: true });
+                          }
+                        }}
+                      >
+                        <Icon name="share" />
+                        {"  Sharing"}
+                      </Dropdown.Item>
+                    }
+                    content="Open sharing panel for selected photos"
+                  />
+                  <Dropdown.Divider />
+                  <Dropdown.Header>
+                    <Icon name="images" />
+                    Album Actions
+                  </Dropdown.Header>
+                  <Popup
+                    inverted
+                    position="left center"
+                    trigger={
+                      <Dropdown.Item
+                        disabled={
+                          !this.props.route.location.pathname.startsWith(
+                            "/useralbum/"
+                          )
+                        }
+                        onClick={() => {
+                          this.setState({ modalAlbumShareOpen: true });
+                        }}
+                      >
+                        <Icon name="share" />
+                        {"  Sharing"}
+                      </Dropdown.Item>
+                    }
+                    content="Open sharing panel for the current album"
+                  />
+                </Dropdown.Menu>
+              </Dropdown>
+            </Button.Group>
+
+            <Button.Group
+              style={{ paddingLeft: 2, paddingRight: 2 }}
+              floated="right"
+              compact
+              color="teal"
+            >
+              <Dropdown
+                disabled={this.state.selectedImageHashes.length === 0}
+                pointing="top right"
+                icon="plus"
+                floating
+                button
+                compact
+                floated="right"
+                className="icon"
+              >
+                <Dropdown.Menu>
+                  <Dropdown.Header>
+                    Album ({this.state.selectedImageHashes.length} selected)
+                  </Dropdown.Header>
+                  <Dropdown.Divider />
+                  <Dropdown.Item
+                    onClick={() => {
+                      if (this.state.selectedImageHashes.length > 0) {
+                        this.setState({ modalAddToAlbumOpen: true });
+                      }
+                    }}
+                  >
+                    <Icon name="bookmark" color="red" />
+                    {" Album"}
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown>
+            </Button.Group>
+
+            {false && isUserAlbum && (
+              <Popup
+                inverted
+                trigger={
+                  <Button.Group
+                    style={{ paddingLeft: 2, paddingRight: 2 }}
+                    floated="right"
+                    compact
+                    icon
+                    onClick={() => {
+                      this.setState({ modalAlbumShareOpen: true });
+                    }}
+                  >
+                    <Button icon="share alternate" />
+                  </Button.Group>
+                }
+                content="Share album"
+              />
+            )}
+
+            <Button.Group
+              style={{ paddingLeft: 2, paddingRight: 2 }}
+              floated="right"
+              compact
+            >
+              <Popup
+                inverted
+                trigger={
+                  <Button
+                    active={this.props.gridType === "dense"}
+                    onClick={() => {
+                      this.props.dispatch({
+                        type: "SET_GRID_TYPE",
+                        payload: "dense",
+                      });
+                    }}
+                    icon
+                  >
+                    <Icon name="grid layout" />
+                  </Button>
+                }
+                content="Small thumbnails"
+              />
+              <Popup
+                inverted
+                trigger={
+                  <Button
+                    active={this.props.gridType === "loose"}
+                    onClick={() => {
+                      this.props.dispatch({
+                        type: "SET_GRID_TYPE",
+                        payload: "loose",
+                      });
+                    }}
+                    icon
+                  >
+                    <Icon name="block layout" />
+                  </Button>
+                }
+                content="Big thumbnails"
+              />
+            </Button.Group>
+          </div>
+        )}
 
         <AutoSizer
           disableHeight
@@ -1205,15 +1217,15 @@ export class PhotoListView extends Component {
                 const cell = this.state.cellContents[rowStartIndex][0];
                 if (cell.date) {
                   var date = cell.date;
-                  if (date == "No Timestamp") {
+                  if (date === "No Timestamp") {
                     this.setState({
                       date: date,
-                      fromNow: date
+                      fromNow: date,
                     });
                   } else {
                     this.setState({
                       date: moment(date).format("MMMM Do YYYY"),
-                      fromNow: moment(date).fromNow()
+                      fromNow: moment(date).fromNow(),
                     });
                   }
                 }
@@ -1228,9 +1240,6 @@ export class PhotoListView extends Component {
                 this.props.isPublic
                   ? this.state.height - TOP_MENU_HEIGHT - 60
                   : this.state.height - TOP_MENU_HEIGHT - 60 - 40
-                // this.state.selectMode
-                //   ? this.state.height - TOP_MENU_HEIGHT - 60 - 40
-                //   : this.state.height - TOP_MENU_HEIGHT - 60
               }
               estimatedRowSize={
                 totalListHeight / this.state.cellContents.length.toFixed(1)
@@ -1250,40 +1259,6 @@ export class PhotoListView extends Component {
           )}
         </AutoSizer>
 
-        {this.state.cellContents[this.state.currTopRenderedRowIdx][0] && (
-          <div
-            style={{
-              right: 0,
-              top:
-                TOP_MENU_HEIGHT +
-                10 +
-                (0 / totalListHeight) *
-                  (this.state.height - TOP_MENU_HEIGHT - 50 - 20),
-              position: "fixed",
-              float: "left",
-              width: 180,
-              padding: 0,
-              height: 50,
-              zIndex: 100
-            }}
-          >
-            <div
-              style={{ textAlign: "right", paddingRight: 30 }}
-              className="handle"
-            >
-              <b>
-              {
-                this.props.dayHeaderPrefix
-                  ? this.props.dayHeaderPrefix + this.state.date
-                  : this.state.date
-              }</b> <br />
-            </div>
-            <div style={{ textAlign: "right", paddingRight: 30 }}>
-              {this.state.fromNow}
-            </div>
-          </div>
-        )}
-
         <div
           style={{
             backgroundColor: "white",
@@ -1291,26 +1266,9 @@ export class PhotoListView extends Component {
             right: 0,
             top: TOP_MENU_HEIGHT,
             height: this.state.height - TOP_MENU_HEIGHT,
-            width: TIMELINE_SCROLL_WIDTH
+            width: TIMELINE_SCROLL_WIDTH,
           }}
         />
-
-        {this.state.lightboxShow &&
-          false && (
-            <LightBoxV2
-              isOpen={this.state.lightboxShow}
-              onCloseRequest={() => {
-                this.setState({ lightboxShow: false });
-              }}
-              idx2hash={this.props.idx2hash}
-              lightboxImageIndex={this.state.lightboxImageIndex}
-              onImageLoad={() => {
-                this.getPhotoDetails(
-                  this.props.idx2hash[this.state.lightboxImageIndex]
-                );
-              }}
-            />
-          )}
 
         {this.state.lightboxShow && (
           <LightBox
@@ -1331,12 +1289,12 @@ export class PhotoListView extends Component {
                   1) %
                 this.props.idx2hash.length;
               this.setState({
-                lightboxImageIndex: prevIndex
+                lightboxImageIndex: prevIndex,
               });
               var rowIdx = this.state.hash2row[this.props.idx2hash[prevIndex]];
               this.listRef.current.scrollToCell({
                 columnIndex: 0,
-                rowIndex: rowIdx
+                rowIndex: rowIdx,
               });
               this.getPhotoDetails(this.props.idx2hash[prevIndex]);
             }}
@@ -1347,12 +1305,12 @@ export class PhotoListView extends Component {
                   1) %
                 this.props.idx2hash.length;
               this.setState({
-                lightboxImageIndex: nextIndex
+                lightboxImageIndex: nextIndex,
               });
               var rowIdx = this.state.hash2row[this.props.idx2hash[nextIndex]];
               this.listRef.current.scrollToCell({
                 columnIndex: 0,
-                rowIndex: rowIdx
+                rowIndex: rowIdx,
               });
               this.getPhotoDetails(this.props.idx2hash[nextIndex]);
             }}
@@ -1364,7 +1322,7 @@ export class PhotoListView extends Component {
             isOpen={this.state.modalAddToAlbumOpen}
             onRequestClose={() => {
               this.setState({
-                modalAddToAlbumOpen: false
+                modalAddToAlbumOpen: false,
               });
             }}
             selectedImageHashes={this.state.selectedImageHashes}
@@ -1375,25 +1333,24 @@ export class PhotoListView extends Component {
             isOpen={this.state.modalSharePhotosOpen}
             onRequestClose={() => {
               this.setState({
-                modalSharePhotosOpen: false
+                modalSharePhotosOpen: false,
               });
             }}
             selectedImageHashes={this.state.selectedImageHashes}
           />
         )}
-        {!this.props.isPublic &&
-          isUserAlbum && (
-            <ModalAlbumShare
-              isOpen={this.state.modalAlbumShareOpen}
-              onRequestClose={() => {
-                this.setState({
-                  modalAlbumShareOpen: false
-                });
-              }}
-              match={this.props.match}
-              selectedImageHashes={this.state.selectedImageHashes}
-            />
-          )}
+        {!this.props.isPublic && isUserAlbum && (
+          <ModalAlbumShare
+            isOpen={this.state.modalAlbumShareOpen}
+            onRequestClose={() => {
+              this.setState({
+                modalAlbumShareOpen: false,
+              });
+            }}
+            match={this.props.match}
+            selectedImageHashes={this.state.selectedImageHashes}
+          />
+        )}
       </div>
     );
   }
@@ -1402,15 +1359,16 @@ export class PhotoListView extends Component {
 class ModalAlbumEdit extends Component {
   state = { newAlbumTitle: "" };
   render() {
+    var filteredUserAlbumList;
     if (this.state.newAlbumTitle.length > 0) {
-      var filteredUserAlbumList = this.props.albumsUserList.filter(el =>
+      filteredUserAlbumList = this.props.albumsUserList.filter((el) =>
         fuzzy_match(
           el.title.toLowerCase(),
           this.state.newAlbumTitle.toLowerCase()
         )
       );
     } else {
-      var filteredUserAlbumList = this.props.albumsUserList;
+      filteredUserAlbumList = this.props.albumsUserList;
     }
     return (
       <Modal
@@ -1435,11 +1393,9 @@ class ModalAlbumEdit extends Component {
           </Header>
         </div>
         <Divider fitted />
-        <div
-          style={{ height: 100, padding: 5, height: 50, overflowY: "hidden" }}
-        >
+        <div style={{ padding: 5, height: 50, overflowY: "hidden" }}>
           <Image.Group>
-            {this.props.selectedImageHashes.map(image_hash => (
+            {this.props.selectedImageHashes.map((image_hash) => (
               <SecuredImageJWT
                 isPublic={this.props.isPublic}
                 height={40}
@@ -1461,7 +1417,7 @@ class ModalAlbumEdit extends Component {
             paddingTop: 10,
             overflowY: "scroll",
             height: window.innerHeight - 300 - 100,
-            width: "100%"
+            width: "100%",
           }}
         >
           <div style={{ paddingRight: 5 }}>
@@ -1475,13 +1431,13 @@ class ModalAlbumEdit extends Component {
               }
               position="bottom center"
               open={this.props.albumsUserList
-                .map(el => el.title.toLowerCase().trim())
+                .map((el) => el.title.toLowerCase().trim())
                 .includes(this.state.newAlbumTitle.toLowerCase().trim())}
               trigger={
                 <Input
                   fluid
                   error={this.props.albumsUserList
-                    .map(el => el.title.toLowerCase().trim())
+                    .map((el) => el.title.toLowerCase().trim())
                     .includes(this.state.newAlbumTitle.toLowerCase().trim())}
                   onChange={(e, v) => {
                     this.setState({ newAlbumTitle: v.value });
@@ -1503,7 +1459,7 @@ class ModalAlbumEdit extends Component {
                       this.setState({ newAlbumTitle: "" });
                     }}
                     disabled={this.props.albumsUserList
-                      .map(el => el.title.toLowerCase().trim())
+                      .map((el) => el.title.toLowerCase().trim())
                       .includes(this.state.newAlbumTitle.toLowerCase().trim())}
                     type="submit"
                   >
@@ -1515,18 +1471,17 @@ class ModalAlbumEdit extends Component {
           </div>
           <Divider />
           {filteredUserAlbumList.length > 0 &&
-            filteredUserAlbumList.map(item => {
+            filteredUserAlbumList.map((item) => {
               return (
                 <div
                   key={`useralbum_${item.id}`}
                   style={{
                     height: 70,
                     justifyContent: "center",
-                    alignItems: "center"
+                    alignItems: "center",
                   }}
                 >
                   <Header
-                    as="h4"
                     onClick={() => {
                       this.props.dispatch(
                         editUserAlbum(
@@ -1569,15 +1524,15 @@ class ModalAlbumEdit extends Component {
   }
 }
 
-ModalAlbumEdit = connect(store => {
+ModalAlbumEdit = connect((store) => {
   return {
     albumsUserList: store.albums.albumsUserList,
     fetchingAlbumsUserList: store.albums.fetchingAlbumsUserList,
-    fetchedAlbumsUserList: store.albums.fetchedAlbumsUserList
+    fetchedAlbumsUserList: store.albums.fetchedAlbumsUserList,
   };
 })(ModalAlbumEdit);
 
-PhotoListView = connect(store => {
+PhotoListView = connect((store) => {
   return {
     showSidebar: store.ui.showSidebar,
     gridType: store.ui.gridType,
@@ -1590,13 +1545,6 @@ PhotoListView = connect(store => {
     fetchingPhotoDetail: store.photos.fetchingPhotoDetail,
     fetchedPhotoDetail: store.photos.fetchedPhotoDetail,
 
-    route: store.routerReducer
+    route: store.routerReducer,
   };
 })(PhotoListView);
-//photosGroupedByDate
-//idx2hash
-//title
-//subtitle
-//titleIconName
-//titleIconColor
-//isPublic

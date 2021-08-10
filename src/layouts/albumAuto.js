@@ -13,13 +13,6 @@ import { SecuredImageJWT } from "../components/SecuredImage";
 
 
 var topMenuHeight = 45; // don't change this
-var ESCAPE_KEY = 27;
-var ENTER_KEY = 13;
-var RIGHT_ARROW_KEY = 39;
-var UP_ARROW_KEY = 38;
-var LEFT_ARROW_KEY = 37;
-var DOWN_ARROW_KEY = 40;
-
 var SIDEBAR_WIDTH = 85;
 
 export class AlbumAuto extends Component {
@@ -43,22 +36,20 @@ export class AlbumAuto extends Component {
   }
 
   calculateEntrySquareSize() {
+    var numEntrySquaresPerRow = 6;
     if (window.innerWidth < 600) {
-      var numEntrySquaresPerRow = 2;
+      numEntrySquaresPerRow = 2;
     } else if (window.innerWidth < 800) {
-      var numEntrySquaresPerRow = 3;
+      numEntrySquaresPerRow = 3;
     } else if (window.innerWidth < 1000) {
-      var numEntrySquaresPerRow = 4;
+      numEntrySquaresPerRow = 4;
     } else if (window.innerWidth < 1200) {
-      var numEntrySquaresPerRow = 5;
-    } else {
-      var numEntrySquaresPerRow = 6;
-    }
+      numEntrySquaresPerRow = 5;
+    } 
 
     var columnWidth = window.innerWidth - SIDEBAR_WIDTH - 5 - 5 - 15;
 
     var entrySquareSize = columnWidth / numEntrySquaresPerRow;
-    var numEntrySquaresPerRow = numEntrySquaresPerRow;
     this.setState({
       width: window.innerWidth,
       height: window.innerHeight,
@@ -107,8 +98,6 @@ export class AlbumAuto extends Component {
   };
 
   render() {
-    var entrySquareSize = this.state.entrySquareSize;
-    var numEntrySquaresPerRow = this.state.numEntrySquaresPerRow;
     return (
       <div>
         <div style={{ height: 60, paddingTop: 10 }}>
@@ -209,105 +198,3 @@ AlbumAuto = connect(store => {
     fetchedAlbumsAutoList: store.albums.fetchedAlbumsAutoList
   };
 })(AlbumAuto);
-
-
-// import React, { Component } from "react";
-// import { connect } from "react-redux";
-// import {
-//   fetchPeopleAlbums,
-//   fetchAutoAlbums,
-//   generateAutoAlbums,
-//   fetchAutoAlbumsList
-// } from "../actions/albumsActions";
-// import { AlbumAutoCard, AlbumAutoGallery } from "../components/album";
-// import {
-//   Container,
-//   Icon,
-//   Header,
-//   Button,
-//   Card,
-//   Label,
-//   Popup
-// } from "semantic-ui-react";
-// import {
-//   fetchCountStats,
-//   fetchPhotoScanStatus,
-//   fetchAutoAlbumProcessingStatus
-// } from "../actions/utilActions";
-// import { SecuredImageJWT } from "../components/SecuredImage";
-
-// import { Server, serverAddress } from "../api_client/apiClient";
-
-// export class AlbumAuto extends Component {
-//   componentWillMount() {
-//     this.props.dispatch(fetchAutoAlbumsList());
-//     var _dispatch = this.props.dispatch;
-//     var intervalId = setInterval(function() {
-//       _dispatch(fetchPhotoScanStatus());
-//       _dispatch(fetchAutoAlbumProcessingStatus());
-//     }, 2000);
-//     this.setState({ intervalId: intervalId });
-//   }
-
-//   componentWillUnmount() {
-//     clearInterval(this.state.intervalId);
-//   }
-
-//   handleAutoAlbumGen = e => this.props.dispatch(generateAutoAlbums());
-
-//   render() {
-//     if (this.props.fetchedAlbumsAutoList) {
-//       var match = this.props.match;
-//       var mappedAlbumCards = this.props.albumsAutoList.map(function(album) {
-//         var albumTitle = album.title;
-//         var albumDate = album.timestamp.split("T")[0];
-//         try {
-//           var albumCoverURL = album.cover_photo_url;
-//         } catch (err) {
-//           console.log(err);
-//           var albumCoverURL = null;
-//         }
-//         return (
-//           <AlbumAutoCard
-//             match={match}
-//             key={"album-auto-" + album.id}
-//             albumTitle={albumTitle}
-//             timestamp={albumDate}
-//             people={album.people}
-//             album_id={album.id}
-//             albumCoverURL={serverAddress + albumCoverURL}
-//             photoCount={album.photo_count}
-//           />
-//         );
-//       });
-//     } else {
-//       var mappedAlbumCards = null;
-//     }
-
-//     return (
-//       <div>
-//         <Card.Group stackable itemsPerRow={this.props.itemsPerRow}>
-//           {mappedAlbumCards}
-//         </Card.Group>
-//       </div>
-//     );
-//   }
-// }
-
-// AlbumAuto = connect(store => {
-//   return {
-//     albumsAuto: store.albums.albumsAuto,
-//     fetchingAlbumsAuto: store.albums.fetchingAlbumsAuto,
-//     fetchedAlbumsAuto: store.albums.fetchedAlbumsAuto,
-
-//     albumsAutoList: store.albums.albumsAutoList,
-//     fetchingAlbumsAutoList: store.albums.fetchingAlbumsAutoList,
-//     fetchedAlbumsAutoList: store.albums.fetchedAlbumsAutoList,
-
-//     generatingAlbumsAuto: store.albums.generatingAlbumsAuto,
-//     generatedAlbumsAuto: store.albums.generatedAlbumsAuto,
-//     statusAutoAlbumProcessing: store.util.statusAutoAlbumProcessing,
-//     statusPhotoScan: store.util.statusPhotoScan,
-//     scanningPhotos: store.photos.scanningPhotos
-//   };
-// })(AlbumAuto);

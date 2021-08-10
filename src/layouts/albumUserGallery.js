@@ -5,20 +5,6 @@ import _ from "lodash";
 import moment from "moment";
 import { PhotoListView } from "./ReusablePhotoListView";
 
-
-var topMenuHeight = 45; // don't change this
-var ESCAPE_KEY = 27;
-var ENTER_KEY = 13;
-var RIGHT_ARROW_KEY = 39;
-var UP_ARROW_KEY = 38;
-var LEFT_ARROW_KEY = 37;
-var DOWN_ARROW_KEY = 40;
-
-var SIDEBAR_WIDTH = 85;
-
-var DAY_HEADER_HEIGHT = 70;
-var leftMenuWidth = 85; // don't change this
-
 export class AlbumUserGallery extends Component {
   state = {
     photosGroupedByDate: [],
@@ -28,13 +14,14 @@ export class AlbumUserGallery extends Component {
 
   componentDidMount() {
     this.props.dispatch(fetchUserAlbum(this.props.match.params.albumID));
+    console.log("albumusergallery props:",this.props);
   }
 
   static getDerivedStateFromProps(nextProps, prevState) {
     if (nextProps.albumsUser.hasOwnProperty(nextProps.match.params.albumID)) {
       const photos =
         nextProps.albumsUser[nextProps.match.params.albumID].photos;
-      if (prevState.idx2hash.length != photos.length) {
+      if (prevState.idx2hash.length !== photos.length) {
         var t0 = performance.now();
         var groupedByDate = _.groupBy(photos, el => {
           if (el.exif_timestamp) {
@@ -58,7 +45,7 @@ export class AlbumUserGallery extends Component {
           });
         });
         var t1 = performance.now();
-        console.log(t1 - t0);
+        console.log("t1-t0:",t1 - t0);
         return {
           ...prevState,
           photosGroupedByDate: groupedByDateList,
@@ -75,7 +62,6 @@ export class AlbumUserGallery extends Component {
 
   render() {
     const { fetchingAlbumsUser } = this.props;
-    console.log(this.props);
     const isPublic =
       this.props.albumsUser[this.props.match.params.albumID] &&
       this.props.albumsUser[this.props.match.params.albumID].owner.id !==
@@ -99,8 +85,11 @@ export class AlbumUserGallery extends Component {
                       .username}
               </b>
             </span>
+            
           ) : (
-            ""
+            <p>
+              {this.props.albumsUser[this.props.match.params.albumID]?this.props.albumsUser[this.props.match.params.albumID].search_location:""}
+            </p>
           )
         }
         loading={fetchingAlbumsUser}

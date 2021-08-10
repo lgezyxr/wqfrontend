@@ -63,7 +63,7 @@ export class LoginPage extends Component {
         <div style={{ maxWidth: 500, padding: 20, margin: "0 auto" }}>
           <Header as="h3" textAlign="center">
             <Image src={"/logo.png"} />
-            <Header.Content>LibrePhotos </Header.Content>
+            <Header.Content>Oil Spill Application </Header.Content>
           </Header>
           <Segment attached>
             <Header>Login</Header>

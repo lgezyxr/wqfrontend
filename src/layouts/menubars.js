@@ -10,8 +10,8 @@ import {
   Header,
   Icon,
   Image,
-  Input,
   Modal,
+  Input,
   Menu,
   Popup,
   Segment,
@@ -27,6 +27,7 @@ import {
   fetchUserAlbumsList,
 } from "../actions/albumsActions";
 import { logout } from "../actions/authActions";
+import { scanPhotos, scanNextcloudPhotos } from "../actions/photosActions";
 import { fetchPeople } from "../actions/peopleActions";
 import {
   searchPeople,
@@ -42,7 +43,7 @@ import {
 } from "../actions/utilActions";
 import { Server,serverAddress } from "../api_client/apiClient";
 import { SecuredImageJWT } from "../components/SecuredImage";
-
+import { fetchUserSelfDetails } from "../actions/userActions";
 
 var ENTER_KEY = 13;
 var topMenuHeight = 45; // don't change this
@@ -59,7 +60,6 @@ function fuzzy_match(str, pattern) {
 }
 
 export class TopMenuPublic extends Component {
-  
   render() {
     return (
       <div>
@@ -130,7 +130,6 @@ export class TopMenuPublic extends Component {
 }
 
 export class TopMenu extends Component {
-  
   state = {
     searchText: "",
     warningPopupOpen: false,
@@ -140,16 +139,21 @@ export class TopMenu extends Component {
     searchBarFocused: false,
     filteredExampleSearchTerms: [],
     filteredSuggestedPeople: [],
+    avatarImgSrc: "/unknown_user.jpg",
     selectedFile: null,
     uploadModelOpen: false
   };
-   
+
   // On file select (from the pop up)
   onFileChange = event => {
   
     // Update the state
     this.setState({ selectedFile: event.target.files[0] });
   
+  };
+
+  onPhotoScanButtonClick = (e) => {
+    this.props.dispatch(scanPhotos());
   };
 
   onFileSubmit = () => {
@@ -190,6 +194,7 @@ export class TopMenu extends Component {
     this.props.dispatch(fetchUserAlbumsList());
     this.props.dispatch(fetchExampleSearchTerms());
     this.props.dispatch(fetchCountStats());
+    this.props.dispatch(fetchUserSelfDetails(this.props.auth.access.user_id));
     window.addEventListener("resize", this.handleResize.bind(this));
     this.exampleSearchTermCylcer = setInterval(() => {
       this.setState({
@@ -332,13 +337,20 @@ export class TopMenu extends Component {
   }
 
   handleChange(e, d) {
-    this.state.searchText = d.value;
+    this.setState({ searchText: d.value});
     this.filterSearchSuggestions();
   }
 
   render() {
-    var searchBarWidth =
-      this.state.width > 600 ? this.state.width - 200 : this.state.width - 220;
+    if(this.state.avatarImgSrc === "/unknown_user.jpg"){
+      console.log(this.state.avatarImgSrc);
+      if (this.props.userSelfDetails && this.props.userSelfDetails.avatar_url) {
+        console.log(serverAddress + this.props.userSelfDetails.avatar_url);
+        this.setState({
+          avatarImgSrc: serverAddress + this.props.userSelfDetails.avatar_url
+        });
+      }
+    }
     var searchBarWidth = this.state.width - 300;
 
     const {
@@ -359,9 +371,8 @@ export class TopMenu extends Component {
         <div style={{ width: 150 }}>
           <Progress
             indicating
-            progress="ratio"
-            value={this.props.workerRunningJob.result.progress.current}
-            total={this.props.workerRunningJob.result.progress.target}
+            progress
+            percent={(this.props.workerRunningJob.result.progress.current.toFixed(2) / this.props.workerRunningJob.result.progress.target * 100).toFixed(0)}
           >
             Running {this.props.workerRunningJob.job_type_str} ...
           </Progress>
@@ -396,7 +407,7 @@ export class TopMenu extends Component {
               </Button>
             </Menu.Item>
           </Menu.Menu>
-
+          
           <Menu.Menu position="right">
             <Menu.Item>
             <Modal
@@ -430,6 +441,14 @@ export class TopMenu extends Component {
             </Modal.Actions>
             </Modal>
             </Menu.Item>
+            <div>
+            <Button
+                  
+              content="Scanning photos (file system)"
+              color="green"
+              onClick={this.onPhotoScanButtonClick}
+              />
+            </div>
             <Menu.Item>
               <Input
                 size="large"
@@ -481,7 +500,7 @@ export class TopMenu extends Component {
                     : "Busy..."
                 }
               />
-
+              
               <Dropdown
                 size="big"
                 button
@@ -798,19 +817,6 @@ export class SideMenuNarrow extends Component {
   handleLogout = (e, { name }) => this.props.dispatch(logout());
 
   render() {
-    var authMenu = (
-      <Menu.Item onClick={this.handleLogout} name="loginout">
-        <Popup
-          inverted
-          size="mini"
-          position="right center"
-          content="Sign out"
-          trigger={<Icon name="sign out" corner />}
-        />
-      </Menu.Item>
-    );
-
-    const { activeItem } = this.state;
     return (
       <Menu
         borderless
@@ -828,7 +834,7 @@ export class SideMenuNarrow extends Component {
 
         {false && (
           <Menu.Item name="logo">
-            <img height={40} src="/logo.png" />
+            <img height={40} alt="Logo of LibrePhotos" src="/logo.png" />
             <p>
               <small>LibrePhotos</small>
             </p>
@@ -839,9 +845,7 @@ export class SideMenuNarrow extends Component {
           pointing="left"
           item
           icon={
-            <Icon.Group size="big">
-              <Icon name="image outline" />
-            </Icon.Group>
+              <Icon size="big" name="image outline" />
           }
         >
           <Dropdown.Menu>
@@ -894,35 +898,37 @@ export class SideMenuNarrow extends Component {
           pointing="left"
           item
           icon={
-            <Icon.Group size="big">
+            <div>
+            <Icon.Group size="big" >
               <Icon name="images outline" />
               <Icon name="bookmark" corner />
             </Icon.Group>
+            </div>
           }
         >
           <Dropdown.Menu>
             <Dropdown.Header>Albums</Dropdown.Header>
-            <Dropdown.Item as={Link} to="/people">
+            {/* <Dropdown.Item as={Link} to="/people">
               <Icon name="users" />
               {"  People"}
-            </Dropdown.Item>
+            </Dropdown.Item> */}
             <Dropdown.Item as={Link} to="/places">
               <Icon name="map" />
               {"  Places"}
             </Dropdown.Item>
-            <Dropdown.Item as={Link} to="/things">
+            {/* <Dropdown.Item as={Link} to="/things">
               <Icon name="tags" />
               {"  Things"}
             </Dropdown.Item>
-            <Dropdown.Divider />
+            <Dropdown.Divider /> */}
             <Dropdown.Item as={Link} to="/useralbums">
               <Icon name="bookmark" />
               {"  My Albums"}
             </Dropdown.Item>
-            <Dropdown.Item as={Link} to="/events">
+            {/* <Dropdown.Item as={Link} to="/events">
               <Icon name="wizard" />
               {"  Auto Created Albums"}
-            </Dropdown.Item>
+            </Dropdown.Item> */}
           </Dropdown.Menu>
         </Dropdown>
         <div style={{ marginTop: -17 }}>
@@ -933,11 +939,7 @@ export class SideMenuNarrow extends Component {
         <Dropdown
           pointing="left"
           item
-          icon={
-            <Icon.Group size="big">
-              <Icon name="bar chart" />
-            </Icon.Group>
-          }
+          icon={<Icon size="big" name="bar chart" />}
         >
           <Dropdown.Menu>
             <Dropdown.Header>Data Visualization</Dropdown.Header>
@@ -946,7 +948,7 @@ export class SideMenuNarrow extends Component {
               {"  Place Tree"}
             </Dropdown.Item>
 
-            <Dropdown.Item as={Link} to="/wordclouds">
+            {/* <Dropdown.Item as={Link} to="/wordclouds">
               <Icon name="cloud" />
               {"  Word Clouds"}
             </Dropdown.Item>
@@ -964,22 +966,18 @@ export class SideMenuNarrow extends Component {
             <Dropdown.Item as={Link} to="/facescatter">
               <Icon name="users circle" />
               {"  Face Clusters"}
-            </Dropdown.Item>
+            </Dropdown.Item> */}
           </Dropdown.Menu>
         </Dropdown>
         <div style={{ marginTop: -17 }}>
           <small>Data Viz</small>
         </div>
 
-        <Divider hidden />
+        {/* <Divider hidden />
         <Dropdown
           pointing="left"
           item
-          icon={
-            <Icon.Group size="big">
-              <Icon name="dashboard" />
-            </Icon.Group>
-          }
+          icon={<Icon size="big" name="dashboard" />}
         >
           <Dropdown.Menu>
             <Dropdown.Header>Dashboards</Dropdown.Header>
@@ -995,7 +993,7 @@ export class SideMenuNarrow extends Component {
         </Dropdown>
         <div style={{ marginTop: -17 }}>
           <small>Dashboards</small>
-        </div>
+        </div> */}
 
         {this.props.auth && (
           <div>
@@ -1003,11 +1001,7 @@ export class SideMenuNarrow extends Component {
             <Dropdown
               pointing="left"
               item
-              icon={
-                <Icon.Group size="big">
-                  <Icon name="users" />
-                </Icon.Group>
-              }
+              icon={<Icon size="big" name="users"/>}
             >
               <Dropdown.Menu>
                 <Dropdown.Header>Sharing</Dropdown.Header>
@@ -1049,14 +1043,15 @@ export class SideMenu extends Component {
   handleLogout = (e, { name }) => this.props.dispatch(logout());
 
   render() {
+    var authMenu
     if (this.props.jwtToken == null) {
-      var authMenu = (
+      authMenu = (
         <Menu.Item name="loginout" as={Link} to="/login">
           <Icon name="sign out" corner /> Log In
         </Menu.Item>
       );
     } else {
-      var authMenu = (
+      authMenu = (
         <Menu.Item
           onClick={this.handleLogout}
           name="loginout"
@@ -1083,7 +1078,7 @@ export class SideMenu extends Component {
         inverted
       >
         <Menu.Item name="logo">
-          <img src="/logo-white.png" />
+          <img alt="Logo of LibrePhotos" src="/logo-white.png" />
         </Menu.Item>
 
         {authMenu}
@@ -1235,6 +1230,7 @@ TopMenu = connect((store) => {
     albumsPlaceList: store.albums.albumsPlaceList,
     fetchingAlbumsPlaceList: store.albums.fetchingAlbumsPlaceList,
     fetchedAlbumsPlaceList: store.albums.fetchedAlbumsPlaceList,
+    userSelfDetails: store.user.userSelfDetails,
   };
 })(TopMenu);
 

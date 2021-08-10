@@ -1,12 +1,6 @@
 import React, { Component } from "react";
-import ReactDOM from "react-dom";
-import { List, WindowScroller, AutoSizer } from "react-virtualized";
 import "react-virtualized/styles.css"; // only needs to be imported once
 import { connect } from "react-redux";
-import {
-  fetchDateAlbumsPhotoHashList,
-  fetchAlbumsDateGalleries
-} from "../actions/albumsActions";
 import { copyToClipboard } from "../util/util";
 import {
   fetchPhotoDetail,
@@ -17,53 +11,30 @@ import {
   predictPhoto
 } from "../actions/photosActions";
 import {
-  Card,
   Image,
   Header,
-  Divider,
   Item,
-  Loader,
-  Dimmer,
   Form,
-  Modal,
-  Sticky,
-  Portal,
-  Grid,
-  List as ListSUI,
-  Container,
   Label,
-  Popup,
-  Segment,
   Button,
-  Input,
   Icon,
-  Table,
   Transition,
   Breadcrumb
 } from "semantic-ui-react";
-import { Server, serverAddress, shareAddress } from "../api_client/apiClient";
-import LazyLoad from "react-lazyload";
+import { serverAddress, shareAddress } from "../api_client/apiClient";
 import Lightbox from "react-image-lightbox";
 import { LocationMap } from "../components/maps";
 import { push } from "react-router-redux";
 import { searchPhotos } from "../actions/searchActions";
-import styles from "../App.css";
-import Draggable from "react-draggable";
-import debounce from "lodash/debounce";
 import * as moment from "moment";
 import { Link } from "react-router-dom";
+import ReactPlayer from 'react-player'
+import 'react-image-lightbox/style.css'; // This only needs to be imported once in your app
 
-var topMenuHeight = 55; // don't change this
-var leftMenuWidth = 85; // don't change this
-var SIDEBAR_WIDTH = 85;
-var timelineScrollWidth = 0;
-var DAY_HEADER_HEIGHT = 35;
-
+var LIGHTBOX_SIDEBAR_WIDTH = 360;
 if (window.innerWidth < 600) {
-  var LIGHTBOX_SIDEBAR_WIDTH = window.innerWidth;
-} else {
-  var LIGHTBOX_SIDEBAR_WIDTH = 360;
-}
+  LIGHTBOX_SIDEBAR_WIDTH = window.innerWidth;
+} 
 
 const colors = [
   "red",
@@ -90,88 +61,91 @@ export class LightBox extends Component {
 
   handleCaptionChange = (e,{value}) => {this.setState({caption_text: value});}
 
-  render() {
-    const authGetParams = !this.props.isPublic
-      ? "?jwt=" + this.props.auth.access.token
-      : "";
-    if (
-      !this.props.photoDetails[
-        this.props.idx2hash.slice(this.props.lightboxImageIndex)[0]
-      ]
-    ) {
-      console.log("light box has not gotten main photo detail");
-      var mainSrc = "/transparentbackground.png";
-    } else {
-      console.log("light box has got main photo detail");
-      var mainSrc =
-        serverAddress +
-        "/media/thumbnails_big/" +
-        this.props.idx2hash.slice(this.props.lightboxImageIndex)[0] +
-        ".jpg";
-      if (
-        this.props.photoDetails[
-          this.props.idx2hash.slice(this.props.lightboxImageIndex)[0]
-        ].hidden &&
-        !this.props.showHidden
-      ) {
-        var mainSrc = "/hidden.png";
-      }
 
-      for (var i = 0; i < 10; i++) {
-        setTimeout(() => {
+  getCurrentPhotodetail(){
+    return this.props.photoDetails[this.props.idx2hash.slice(this.props.lightboxImageIndex)[0]];
+  }
 
-          // Fix large wide images when side bar open; retry once per 250ms over 2.5 seconds
-          if (document.getElementsByClassName('ril-image-current').length > 0) {
-            this.state.wideImg = (document.getElementsByClassName('ril-image-current')[0].naturalWidth > window.innerWidth);
+  isLoaded(){
+    return !this.props.photoDetails[this.props.idx2hash.slice(this.props.lightboxImageIndex)[0]];
+  }
 
-            // 360px side bar /2 = 180px to the left = re-centers a wide image
-            var translate = (this.state.lightboxSidebarShow && this.state.wideImg) ? `-180px` : '';
+  getCurrentHash(){
+    return this.props.idx2hash.slice(this.props.lightboxImageIndex)[0];
+  }
 
-            if (document.getElementsByClassName('ril-image-current')[0].style.left !== translate) {
-              document.getElementsByClassName('ril-image-current')[0].style.left = translate;
+  getLastHash(){
+    return  this.props.idx2hash.slice(
+      (this.props.lightboxImageIndex - 1) % this.props.idx2hash.length
+    )[0];
+  }
 
-              // Fix react-image-lightbox
-              // It did not re-calculate the image_prev and image_next when pressed left or right arrow key
-              // It only updated those offsets on render / scroll / double click to zoom / etc.
-              this.forceUpdate();
-            }
+  getNextHash(){
+    this.props.idx2hash.slice(
+      (this.props.lightboxImageIndex + 1) % this.props.idx2hash.length
+    )[0];
+  }
 
-            // Since we disabled animations, we can set image_prev and image_next visibility hidden
-            // Fixes prev/next large wide 16:9 images were visible at same time as main small 9:16 image in view
-            document.getElementsByClassName('ril-image-prev')[0].style.visibility = 'hidden';
-            document.getElementsByClassName('ril-image-next')[0].style.visibility = 'hidden';
-            document.getElementsByClassName('ril-image-current')[0].style.visibility = 'visible';
+  getPictureUrl(hash){
+    return serverAddress + "/media/thumbnails_big/" + hash + ".jpg";
+  }
 
-            // Make toolbar background fully transparent
-            if (document.getElementsByClassName('ril-toolbar').length > 0) {
-              document.getElementsByClassName('ril-toolbar')[0].style.backgroundColor = 'rgba(0, 0, 0, 0)';
-            }
-          }
-        }, 250*i);
-      }
+  getVideoUrl(hash){
+    return serverAddress + "/media/video/" + hash;
+  }
+
+  isVideo(){
+    if (this.getCurrentPhotodetail() === undefined || this.getCurrentPhotodetail().video === undefined){
+      return false;
     }
+    return this.getCurrentPhotodetail().video;
+  }
 
+  render() {
+      if(!this.isVideo()){
+        for (var i = 0; i < 10; i++) {
+          setTimeout(() => {
+
+            // Fix large wide images when side bar open; retry once per 250ms over 2.5 seconds
+            if (document.getElementsByClassName('ril-image-current').length > 0) {
+              this.setState({wideImg: (document.getElementsByClassName('ril-image-current')[0].naturalWidth > window.innerWidth)});
+
+              // 360px side bar /2 = 180px to the left = re-centers a wide image
+              var translate = (this.state.lightboxSidebarShow && this.state.wideImg) ? `-180px` : '';
+
+              if (document.getElementsByClassName('ril-image-current')[0].style.left !== translate) {
+                document.getElementsByClassName('ril-image-current')[0].style.left = translate;
+
+                // Fix react-image-lightbox
+                // It did not re-calculate the image_prev and image_next when pressed left or right arrow key
+                // It only updated those offsets on render / scroll / double click to zoom / etc.
+                this.forceUpdate();
+              }
+
+              // Since we disabled animations, we can set image_prev and image_next visibility hidden
+              // Fixes prev/next large wide 16:9 images were visible at same time as main small 9:16 image in view
+              document.getElementsByClassName('ril-image-prev')[0].style.visibility = 'hidden';
+              document.getElementsByClassName('ril-image-next')[0].style.visibility = 'hidden';
+              document.getElementsByClassName('ril-image-current')[0].style.visibility = 'visible';
+
+              // Make toolbar background fully transparent
+              if (document.getElementsByClassName('ril-toolbar').length > 0) {
+                document.getElementsByClassName('ril-toolbar')[0].style.backgroundColor = 'rgba(0, 0, 0, 0)';
+              }
+            }
+          }, 250*i);
+        }
+      }
+    
     return (
       <div>
         <Lightbox
           animationDisabled={true}
-          mainSrc={mainSrc}
-          nextSrc={
-            serverAddress +
-            "/media/thumbnails_big/" +
-            this.props.idx2hash.slice(
-              (this.props.lightboxImageIndex + 1) % this.props.idx2hash.length
-            )[0] +
-            ".jpg"
-          }
-          prevSrc={
-            serverAddress +
-            "/media/thumbnails_big/" +
-            this.props.idx2hash.slice(
-              (this.props.lightboxImageIndex - 1) % this.props.idx2hash.length
-            )[0] +
-            ".jpg"
-          }
+          mainSrc={!this.isVideo() ? this.getPictureUrl(this.getCurrentHash()) : null}
+          nextSrc={this.getPictureUrl(this.getNextHash())}
+          prevSrc={this.getPictureUrl(this.getLastHash())}
+          mainCustomContent={this.isVideo() ? <ReactPlayer width='100%' height='100%' controls={true} playing={true} url={this.getVideoUrl(this.getCurrentHash())} progressInterval={100}></ReactPlayer> : null}
+          imageLoadErrorMessage={""}
           toolbarButtons={[
             <div>
               {!this.props.photoDetails[
@@ -329,9 +303,6 @@ export class LightBox extends Component {
           }
           reactModalStyle={{
             content: {
-              // transform: this.state.lightboxSidebarShow ? `scale(0.5,1)` : ''
-              // right: this.state.lightboxSidebarShow ? LIGHTBOX_SIDEBAR_WIDTH : 0,
-              // width: this.state.lightboxSidebarShow ? window.innerWidth - LIGHTBOX_SIDEBAR_WIDTH : window.innerWidth,
             },
             overlay: {
               right: this.state.lightboxSidebarShow
@@ -566,14 +537,14 @@ export class LightBox extends Component {
                             {/* <Button
                               loading={this.props.generatingCaptionIm2txt}
                               onClick={()=>{this.props.dispatch(generatePhotoIm2txtCaption(this.props.idx2hash[this.props.lightboxImageIndex]))}}
-                              disabled={this.props.isPublic | this.props.generatingCaptionIm2txt}
+                              disabled={this.props.isPublic | (this.props.generatingCaptionIm2txt != null && this.props.generatingCaptionIm2txt)}
                               floated="left"
                               size="small"
                               color="blue"
                             >
                               Generate
-                            </Button> */}
-                            {/* <Button
+                            </Button>
+                            <Button
                               disabled={this.props.isPublic}
                               floated="right"
                               size="small"
@@ -587,8 +558,7 @@ export class LightBox extends Component {
                     </Item>
 
 {/* End Item Caption */}
-
-{/* Start Item Prediction */}
+{/* Start Item Scene */}
 <Item>
                       <Item.Content verticalAlign="middle">
                         <Item.Header>
@@ -638,11 +608,7 @@ export class LightBox extends Component {
                         </Item.Description>
                       </Item.Content>
                     </Item>
-{/* End Item Prediction*/}
-
-{/* Start Item Scene */}
-{/* 
-                    <Item>
+                    {/* <Item>
                       <Item.Content verticalAlign="middle">
                         <Item.Header>
                           <Icon name="tags" /> Scene
@@ -666,16 +632,6 @@ export class LightBox extends Component {
                                     nc
                                   }
                                   tag
-                                  color={
-                                    colors[
-                                      idx %
-                                        this.props.photoDetails[
-                                          this.props.idx2hash[
-                                            this.props.lightboxImageIndex
-                                          ]
-                                        ].search_captions.split(" , ").length
-                                    ]
-                                  }
                                   color="blue"
                                   onClick={() => {
                                     this.props.dispatch(searchPhotos(nc));
@@ -705,16 +661,6 @@ export class LightBox extends Component {
                                     nc
                                   }
                                   tag
-                                  color={
-                                    colors[
-                                      idx %
-                                        this.props.photoDetails[
-                                          this.props.idx2hash[
-                                            this.props.lightboxImageIndex
-                                          ]
-                                        ].search_captions.split(" , ").length
-                                    ]
-                                  }
                                   color="teal"
                                   onClick={() => {
                                     this.props.dispatch(searchPhotos(nc));
@@ -747,6 +693,7 @@ export class LightBox extends Component {
                                   ]
                                 ].similar_photos.slice(0,30).map(el=>(
                                   <Image width={95} height={95}
+                                    key={el.image_hash}
                                     src={serverAddress+"/media/square_thumbnails_small/"+el.image_hash+".jpg"}/>
                                 ))
                           }

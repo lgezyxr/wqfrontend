@@ -47,16 +47,6 @@ export class AdminPage extends Component {
       return <div>Unauthorized</div>;
     }
 
-    if (this.props.userSelfDetails.square_avatar) {
-      var avatarImgSrc = this.props.userSelfDetails.square_avatar;
-    } else if (this.state.avatarImgSrc) {
-      var avatarImgSrc = this.state.avatarImgSrc;
-    } else {
-      var avatarImgSrc = '/unknown_user.jpg';
-    }
-
-    var buttonsDisabled = !this.props.workerAvailability;
-
     return (
       <div style={{padding: 10}}>
         <Header as="h2">
@@ -228,16 +218,6 @@ class JobList extends Component {
           </Table.Header>
           <Table.Body>
             {this.props.jobList.map(job => {
-              let progressPerc = 0;
-              if (job.result.progress) {
-                progressPerc =
-                  (job.result.progress.current.toFixed() /
-                    job.result.progress.target) *
-                  100;
-              }
-              if (job.finished && !job.failed) {
-                progressPerc = 100;
-              }
               const jobSuccess = job.finished && !job.failed;
               return (
                 <Table.Row
@@ -263,19 +243,14 @@ class JobList extends Component {
                       <Progress
                         indicating
                         size="small"
-                        progress="ratio"
+                        progress= {(job.result.progress.current.toFixed(2) / job.result.progress.target * 100).toFixed(2) < 20 ? "value" : "ratio"}
                         value={job.result.progress.current}
-                        total={
-                          job.result.progress.target > 0
-                            ? job.result.progress.target
-                            : 1
-                        }
+                        total={job.result.progress.target}
                         active={!job.finished}
                         success={jobSuccess}>
                         {(
                           job.result.progress.current.toFixed(2) /
-                          job.result.progress.target
-                        ).toFixed(2) * 100}
+                          job.result.progress.target * 100).toFixed(2)}
                         %
                       </Progress>
                     ) : job.finished ? (
@@ -375,7 +350,7 @@ class ModalScanDirectoryEdit extends Component {
 
   nodeClicked(event, rowInfo) {
     console.log(rowInfo);
-    this.inputRef.current.inputRef.value = rowInfo.node.absolute_path;
+    this.inputRef.current.value = rowInfo.node.absolute_path;
     this.setState({newScanDirectory: rowInfo.node.absolute_path});
   }
 
@@ -426,7 +401,9 @@ class ModalScanDirectoryEdit extends Component {
                         color="green"
                         onClick={() => {
                             if (this.state.newScanDirectory === "") {
-                                this.state.newScanDirectory = this.props.userToEdit.scan_directory;
+                              this.setState({
+                                newScanDirectory: this.props.userToEdit.scan_directory,
+                              });
                             }
                           const newUserData = {
                             ...this.props.userToEdit,
